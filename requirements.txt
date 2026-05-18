@@ -4,3 +4,4 @@ pandas
 imgkit
 holidays
 pytest
+Pillow

@@ -16,13 +16,61 @@ from investor_flows.transform import (
     select_top_combined_net_buy,
     tag_rows_with_market,
 )
+from utils.api_util import ApiError, ApiUtil
 from utils.logger_util import LoggerUtil
+from utils.telegram_util import TelegramUtil
 
 load_dotenv()
 
 
 def is_today_holiday() -> bool:
     return datetime.today().date() in holidays.KR()
+
+
+def build_delivery_metadata(today: datetime | None = None) -> dict[str, str]:
+    report_date = today or datetime.now()
+    title = f"{report_date:%Y-%m-%d} 외국인+기관 동반 순매수 TOP 10"
+    return {
+        "title": title,
+        "content": f"{title} 결과",
+        "category": "외국인기관순매수",
+        "writer": "admin",
+    }
+
+
+def deliver_results(image_paths: list[str]) -> None:
+    metadata = build_delivery_metadata()
+    logger = LoggerUtil().get_logger()
+    telegram = TelegramUtil()
+
+    logger.info("Telegram 메시지 전송 시작")
+    telegram.send_multiple_photo(image_paths, metadata["title"])
+    logger.info("Telegram 메시지 전송 완료")
+
+    try:
+        api_util = ApiUtil()
+        thumbnail_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "thumbnail", "thumbnail.png"
+        )
+
+        logger.info("MQWAY API 포스트 생성 시작")
+        api_util.create_post(
+            title=metadata["title"],
+            content=metadata["content"],
+            category=metadata["category"],
+            writer=metadata["writer"],
+            image_paths=image_paths,
+            thumbnail_image_path=thumbnail_path,
+        )
+        logger.info("MQWAY API 포스트 생성 완료")
+    except ApiError as exc:
+        error_message = f"API 오류 발생\n\n{exc.message}"
+        try:
+            telegram.send_test_message(error_message)
+        except Exception as notify_error:
+            logger.warning("Telegram 테스트 알림 전송 실패: %s", notify_error)
+        logger.error("MQWAY API 포스트 생성 오류: %s", exc.message)
+        raise
 
 
 class InvestorFlowsReport:
@@ -366,6 +414,7 @@ if __name__ == "__main__":
             logger.info("Today is a Korean market holiday. Exiting.")
             sys.exit(0)
         paths = InvestorFlowsReport().run()
+        deliver_results(paths)
         for path in paths:
             print(path)
     except Exception as exc:
