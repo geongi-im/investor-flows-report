@@ -1,0 +1,13 @@
+.env
+token.json
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+logs/
+img/*.png
+img/*.jpg
+img/*.jpeg
+img/*.webp
+*.lnk
