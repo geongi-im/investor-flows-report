@@ -285,7 +285,7 @@ class InvestorFlowsReport:
                 .stock-code {{ font-size: 10px; color: #666; display: block; margin-top: 2px; }}
                 tr:nth-child(even) td {{ background-color: #f9f9f9; }}
                 .caption {{ text-align: center; font-size: 18px; font-weight: 700; margin: 15px 0; color: #333333; }}
-                .market-summary {{ text-align: center; font-size: 13px; font-weight: 600; margin: 0 0 10px; color: #333333; }}
+                .market-summary {{ text-align: right; font-size: 13px; font-weight: 600; margin: 0 0 10px; color: #333333; }}
                 .source {{ text-align: right; font-size: 11px; color: #666666; margin-top: 10px; }}
                 .positive {{ color: #d32f2f; }}
                 .negative {{ color: #1976d2; }}
