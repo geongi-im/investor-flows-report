@@ -38,7 +38,11 @@ def tag_rows_with_market(rows: Iterable[dict[str, Any]], market: str) -> list[di
 def select_top_combined_net_buy(
     rows: Iterable[dict[str, Any]], top_n: int = 10
 ) -> list[dict[str, Any]]:
-    enriched = [with_combined_flow_fields(row) for row in rows]
+    enriched = [
+        with_combined_flow_fields(row)
+        for row in rows
+        if parse_int(row.get("frgn_ntby_qty")) > 0 and parse_int(row.get("orgn_ntby_qty")) > 0
+    ]
     enriched.sort(key=lambda item: item["combined_net_buy_qty"], reverse=True)
     return enriched[:top_n]
 
@@ -52,13 +56,6 @@ def _format_rate(value: Any) -> str:
     return f"{value_float:.2f}%"
 
 
-def _format_compare_rates(row: dict[str, Any]) -> str:
-    market = row.get("market", "UNKNOWN")
-    market_text = f"{market}: {_format_rate(row.get('index_change_rate', 0))}"
-    stock_text = f"종목: {_format_rate(row.get('price_change_rate', 0))}"
-    return f"{market_text}<br>{stock_text}"
-
-
 def build_report_dataframe(rows: list[dict[str, Any]]) -> pd.DataFrame:
     if not rows:
         return pd.DataFrame()
@@ -69,7 +66,7 @@ def build_report_dataframe(rows: list[dict[str, Any]]) -> pd.DataFrame:
         for row in rows
     ]
     result_df["현재가"] = [f"{parse_int(row.get('stck_prpr')):,}" for row in rows]
-    result_df["시장대비등락률"] = [_format_compare_rates(row) for row in rows]
+    result_df["종목등락률(30일)"] = [_format_rate(row.get("price_change_rate", 0)) for row in rows]
     result_df["외국인순매수량"] = [f"{parse_int(row.get('frgn_ntby_qty')):,}" for row in rows]
     result_df["기관순매수량"] = [f"{parse_int(row.get('orgn_ntby_qty')):,}" for row in rows]
     result_df["합산순매수량"] = [

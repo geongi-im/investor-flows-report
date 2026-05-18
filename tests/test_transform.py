@@ -39,6 +39,44 @@ def test_select_top_combined_net_buy_sorts_before_slicing():
     assert result[0]["combined_net_buy_amount"] == 12100
 
 
+def test_select_top_combined_net_buy_filters_to_positive_foreign_and_institution():
+    rows = [
+        {
+            "hts_kor_isnm": "ForeignOnly",
+            "mksc_shrn_iscd": "000001",
+            "stck_prpr": "1000",
+            "frgn_ntby_qty": "999999",
+            "orgn_ntby_qty": "0",
+        },
+        {
+            "hts_kor_isnm": "InstitutionOnly",
+            "mksc_shrn_iscd": "000002",
+            "stck_prpr": "1000",
+            "frgn_ntby_qty": "0",
+            "orgn_ntby_qty": "999999",
+        },
+        {
+            "hts_kor_isnm": "BothPositive",
+            "mksc_shrn_iscd": "000003",
+            "stck_prpr": "1000",
+            "frgn_ntby_qty": "10",
+            "orgn_ntby_qty": "20",
+        },
+        {
+            "hts_kor_isnm": "ForeignNegative",
+            "mksc_shrn_iscd": "000004",
+            "stck_prpr": "1000",
+            "frgn_ntby_qty": "-1",
+            "orgn_ntby_qty": "999999",
+        },
+    ]
+
+    result = select_top_combined_net_buy(rows, top_n=10)
+
+    assert [row["mksc_shrn_iscd"] for row in result] == ["000003"]
+    assert result[0]["combined_net_buy_qty"] == 30
+
+
 def test_build_report_dataframe_formats_combined_columns():
     rows = [
         {
@@ -65,7 +103,10 @@ def test_build_report_dataframe_formats_combined_columns():
     assert df.loc[0, "기관순매수량"] == "-250"
     assert df.loc[0, "합산순매수량"] == "750"
     assert df.loc[0, "합산순매수금액"] == "500.0"
-    assert "KOSPI" in df.loc[0, "시장대비등락률"]
+    assert "종목등락률(30일)" in df.columns
+    assert "KOSPI" not in df.loc[0, "종목등락률(30일)"]
+    assert "-3.45%" in df.loc[0, "종목등락률(30일)"]
+    assert "시장대비등락률" not in df.columns
 
 
 def test_tag_rows_with_market_returns_copies_with_market_field():

@@ -222,25 +222,28 @@ class InvestorFlowsReport:
             result.append(item)
         return result
 
-    def add_market_info(
-        self, rows: list[dict[str, Any]], kospi_rate: float, kosdaq_rate: float
-    ) -> list[dict[str, Any]]:
-        result = []
-        for row in rows:
-            item = row.copy()
-            market = item.get("market", "Not Found")
-            item["market"] = market
-            if market == "KOSPI":
-                item["index_change_rate"] = kospi_rate
-            elif market == "KOSDAQ":
-                item["index_change_rate"] = kosdaq_rate
-            else:
-                item["index_change_rate"] = 0
-            result.append(item)
-        return result
+    def calculate_30day_rate(self, df: pd.DataFrame, label: str) -> float:
+        if len(df) < 30:
+            raise RuntimeError(f"At least 30 {label} rows are required to compute 30-day rates.")
+
+        return round(
+            ((df.iloc[0]["close"] - df.iloc[29]["close"]) / df.iloc[29]["close"]) * 100,
+            2,
+        )
+
+    def format_rate(self, value: float) -> str:
+        if value < 0:
+            return f"<span class='negative'>{value:.2f}%</span>"
+        if value > 0:
+            return f"<span class='positive'>{value:.2f}%</span>"
+        return f"{value:.2f}%"
 
     def save_df_as_image(
-        self, df: pd.DataFrame, file_name: str = "investor_flows_top_report"
+        self,
+        df: pd.DataFrame,
+        market: str,
+        market_index_change_rate: float,
+        file_name: str,
     ) -> str:
         if df.empty:
             raise ValueError("Cannot render an empty DataFrame.")
@@ -254,9 +257,12 @@ class InvestorFlowsReport:
             if old_file.startswith(file_name) and old_file.endswith(".png"):
                 os.remove(os.path.join(self.img_dir, old_file))
 
-        caption = f"{datetime.now():%Y-%m-%d} 외국인+기관 합산 순매수 상위 TOP 10"
+        caption = f"{datetime.now():%Y-%m-%d} {market} 외국인+기관 동반 순매수 TOP 10"
+        market_summary = (
+            f"시장지표(30일): <strong>{market}</strong> "
+            f"{self.format_rate(market_index_change_rate)}"
+        )
         df_html = df.to_html(index=False, classes="styled-table", escape=False)
-        df_html = df_html.replace(">시장대비등락률<", ">시장대비등락률<br>(30일기준)<")
         df_html = df_html.replace(">합산순매수금액<", ">합산순매수금액<br>(억원)<")
         df_html = df_html.replace("<th>종목명</th>", '<th class="stock-name">종목명</th>')
         df_html = re.sub(
@@ -279,6 +285,7 @@ class InvestorFlowsReport:
                 .stock-code {{ font-size: 10px; color: #666; display: block; margin-top: 2px; }}
                 tr:nth-child(even) td {{ background-color: #f9f9f9; }}
                 .caption {{ text-align: center; font-size: 18px; font-weight: 700; margin: 15px 0; color: #333333; }}
+                .market-summary {{ text-align: center; font-size: 13px; font-weight: 600; margin: 0 0 10px; color: #333333; }}
                 .source {{ text-align: right; font-size: 11px; color: #666666; margin-top: 10px; }}
                 .positive {{ color: #d32f2f; }}
                 .negative {{ color: #1976d2; }}
@@ -286,6 +293,7 @@ class InvestorFlowsReport:
         </head>
         <body>
             <div class="caption">{caption}</div>
+            <div class="market-summary">{market_summary}</div>
             {df_html}
             <div class="source">※ 출처 : 한국투자증권 Open API, MQ(Money Quotient)</div>
         </body>
@@ -304,40 +312,51 @@ class InvestorFlowsReport:
         imgkit.from_string(html, file_path, options=options, config=config)
         return file_path
 
-    def run(self) -> str:
+    def build_market_report(
+        self,
+        market: str,
+        input_iscd: str,
+        index_df: pd.DataFrame,
+        file_name: str,
+    ) -> str:
+        market_index_change_rate = self.calculate_30day_rate(index_df, market)
+        reference_date = index_df.iloc[29]["date"].strftime("%Y%m%d")
+
+        rows = self.get_investor_flow_rows_for_market(input_iscd, market)
+        top_rows = select_top_combined_net_buy(rows, top_n=10)
+        top_rows = self.add_historical_price_change(top_rows, reference_date)
+        df = build_report_dataframe(top_rows)
+        return self.save_df_as_image(
+            df=df,
+            market=market,
+            market_index_change_rate=market_index_change_rate,
+            file_name=file_name,
+        )
+
+    def run(self) -> list[str]:
         today = datetime.now().strftime("%Y%m%d")
         self.logger.info("Investor flows report started.")
 
-        rows = self.get_investor_flow_rows()
-        top_rows = select_top_combined_net_buy(rows, top_n=10)
-
         kospi_df = self.get_domestic_index("KOSPI", today)
         kosdaq_df = self.get_domestic_index("KOSDAQ", today)
-        if len(kospi_df) < 30 or len(kosdaq_df) < 30:
-            raise RuntimeError("At least 30 index rows are required to compute 30-day rates.")
 
-        kospi_rate = round(
-            ((kospi_df.iloc[0]["close"] - kospi_df.iloc[29]["close"]) / kospi_df.iloc[29]["close"])
-            * 100,
-            2,
-        )
-        kosdaq_rate = round(
-            (
-                (kosdaq_df.iloc[0]["close"] - kosdaq_df.iloc[29]["close"])
-                / kosdaq_df.iloc[29]["close"]
-            )
-            * 100,
-            2,
-        )
-        reference_date = kospi_df.iloc[29]["date"].strftime("%Y%m%d")
+        image_paths = [
+            self.build_market_report(
+                market="KOSPI",
+                input_iscd="0001",
+                index_df=kospi_df,
+                file_name="investor_flows_kospi_top_report",
+            ),
+            self.build_market_report(
+                market="KOSDAQ",
+                input_iscd="1001",
+                index_df=kosdaq_df,
+                file_name="investor_flows_kosdaq_top_report",
+            ),
+        ]
 
-        top_rows = self.add_historical_price_change(top_rows, reference_date)
-        top_rows = self.add_market_info(top_rows, kospi_rate, kosdaq_rate)
-        df = build_report_dataframe(top_rows)
-        image_path = self.save_df_as_image(df)
-
-        self.logger.info("Investor flows report image saved: %s", image_path)
-        return image_path
+        self.logger.info("Investor flows report images saved: %s", image_paths)
+        return image_paths
 
 
 if __name__ == "__main__":
@@ -346,8 +365,9 @@ if __name__ == "__main__":
         if is_today_holiday():
             logger.info("Today is a Korean market holiday. Exiting.")
             sys.exit(0)
-        path = InvestorFlowsReport().run()
-        print(path)
+        paths = InvestorFlowsReport().run()
+        for path in paths:
+            print(path)
     except Exception as exc:
         logger.exception("Report failed: %s", exc)
         sys.exit(1)
