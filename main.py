@@ -5,36 +5,20 @@ import sys
 from datetime import datetime
 from typing import Any
 
-import FinanceDataReader as fdr
 import holidays
 import imgkit
 import pandas as pd
 import requests
 from dotenv import load_dotenv
 
-from investor_flows.transform import build_report_dataframe, select_top_combined_net_buy
+from investor_flows.transform import (
+    build_report_dataframe,
+    select_top_combined_net_buy,
+    tag_rows_with_market,
+)
 from utils.logger_util import LoggerUtil
 
 load_dotenv()
-
-_cached_kospi_tickers: list[str] | None = None
-_cached_kosdaq_tickers: list[str] | None = None
-
-
-def check_market(ticker: str) -> str:
-    global _cached_kospi_tickers, _cached_kosdaq_tickers
-
-    code = str(ticker).strip().zfill(6)
-    if _cached_kospi_tickers is None:
-        _cached_kospi_tickers = fdr.StockListing("KOSPI")["Code"].tolist()
-    if _cached_kosdaq_tickers is None:
-        _cached_kosdaq_tickers = fdr.StockListing("KOSDAQ")["Code"].tolist()
-
-    if code in _cached_kospi_tickers:
-        return "KOSPI"
-    if code in _cached_kosdaq_tickers:
-        return "KOSDAQ"
-    return "Not Found"
 
 
 def is_today_holiday() -> bool:
@@ -106,7 +90,9 @@ class InvestorFlowsReport:
         self.save_token(token_info)
         return token_info["access_token"]
 
-    def get_investor_flow_rows(self) -> list[dict[str, Any]]:
+    def get_investor_flow_rows_for_market(
+        self, input_iscd: str, market: str
+    ) -> list[dict[str, Any]]:
         token = self.get_token()
         url = f"{self.url_base}/uapi/domestic-stock/v1/quotations/foreign-institution-total"
         headers = {
@@ -119,7 +105,7 @@ class InvestorFlowsReport:
         params = {
             "FID_COND_MRKT_DIV_CODE": "V",
             "FID_COND_SCR_DIV_CODE": "16449",
-            "FID_INPUT_ISCD": "0000",
+            "FID_INPUT_ISCD": input_iscd,
             "FID_DIV_CLS_CODE": "0",
             "FID_RANK_SORT_CLS_CODE": "0",
             "FID_ETC_CLS_CODE": "0",
@@ -127,10 +113,16 @@ class InvestorFlowsReport:
         response = requests.get(url, headers=headers, params=params, timeout=30)
         body = response.json()
         if response.status_code == 200 and body.get("rt_cd") == "0":
-            return body.get("output", [])
+            return tag_rows_with_market(body.get("output", []), market)
 
         message = body.get("msg_cd") or body.get("msg1") or response.text
-        raise RuntimeError(f"KIS investor flow request failed: {message}")
+        raise RuntimeError(f"KIS investor flow request failed for {market}: {message}")
+
+    def get_investor_flow_rows(self) -> list[dict[str, Any]]:
+        rows = []
+        rows.extend(self.get_investor_flow_rows_for_market("0001", "KOSPI"))
+        rows.extend(self.get_investor_flow_rows_for_market("1001", "KOSDAQ"))
+        return rows
 
     def get_stock_price(self, stock_code: str, start_date: str, end_date: str) -> pd.DataFrame:
         token = self.get_token()
@@ -236,7 +228,7 @@ class InvestorFlowsReport:
         result = []
         for row in rows:
             item = row.copy()
-            market = check_market(item["mksc_shrn_iscd"])
+            market = item.get("market", "Not Found")
             item["market"] = market
             if market == "KOSPI":
                 item["index_change_rate"] = kospi_rate

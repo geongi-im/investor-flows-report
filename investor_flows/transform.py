@@ -26,6 +26,15 @@ def with_combined_flow_fields(row: dict[str, Any]) -> dict[str, Any]:
     return item
 
 
+def tag_rows_with_market(rows: Iterable[dict[str, Any]], market: str) -> list[dict[str, Any]]:
+    result = []
+    for row in rows:
+        item = row.copy()
+        item["market"] = market
+        result.append(item)
+    return result
+
+
 def select_top_combined_net_buy(
     rows: Iterable[dict[str, Any]], top_n: int = 10
 ) -> list[dict[str, Any]]:

@@ -16,7 +16,7 @@ The reference implementation already handles:
 
 - KIS token loading, refreshing, and saving.
 - `foreign-institution-total` API calls.
-- market detection with FinanceDataReader.
+- market-specific KIS API calls for KOSPI and KOSDAQ data.
 - 30 trading-day stock and index change calculations.
 - rendering a DataFrame as a PNG through `imgkit`.
 
@@ -30,12 +30,12 @@ Use:
 - TR ID: `FHPTJ04400000`
 - `FID_COND_MRKT_DIV_CODE`: `V`
 - `FID_COND_SCR_DIV_CODE`: `16449`
-- `FID_INPUT_ISCD`: `0000`
+- `FID_INPUT_ISCD`: `0001` for KOSPI and `1001` for KOSDAQ
 - `FID_DIV_CLS_CODE`: `0`
 - `FID_RANK_SORT_CLS_CODE`: `0`
 - `FID_ETC_CLS_CODE`: `0`
 
-`FID_ETC_CLS_CODE=0` retrieves the aggregate screen that includes both foreign and institutional columns. The fields used for ranking are:
+`FID_ETC_CLS_CODE=0` retrieves the aggregate screen that includes both foreign and institutional columns. The report fetches KOSPI and KOSDAQ separately, tags each row with its market, combines the rows, then sorts by the local combined-flow rule. The fields used for ranking are:
 
 - `frgn_ntby_qty`: foreign net buy quantity
 - `orgn_ntby_qty`: institutional net buy quantity

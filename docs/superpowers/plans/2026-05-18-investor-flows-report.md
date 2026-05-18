@@ -6,7 +6,7 @@
 
 **Architecture:** Keep pure ranking and formatting logic in `investor_flows/transform.py` so it can be tested without KIS credentials. Keep KIS token/API calls, market/index enrichment, and image rendering in `main.py`, following the existing reference project structure but excluding Telegram and board post integrations.
 
-**Tech Stack:** Python 3, pandas, requests, python-dotenv, imgkit, FinanceDataReader, holidays, pytest.
+**Tech Stack:** Python 3, pandas, requests, python-dotenv, imgkit, holidays, pytest.
 
 ---
 
@@ -21,7 +21,7 @@
 - Create `investor_flows/__init__.py`: package marker.
 - Create `investor_flows/transform.py`: pure numeric parsing, combined flow enrichment, sorting, top-N selection, and report DataFrame creation.
 - Create `tests/test_transform.py`: focused tests for pure logic.
-- Create `main.py`: executable script that calls KIS, enriches selected rows, and writes the PNG image.
+- Create `main.py`: executable script that calls KIS separately for KOSPI and KOSDAQ, enriches selected rows, and writes the PNG image.
 
 ## Task 1: Repository Baseline
 
@@ -69,7 +69,6 @@ python-dotenv
 pandas
 imgkit
 holidays
-FinanceDataReader
 pytest
 ```
 

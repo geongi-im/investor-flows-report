@@ -3,5 +3,4 @@ python-dotenv
 pandas
 imgkit
 holidays
-FinanceDataReader
 pytest
