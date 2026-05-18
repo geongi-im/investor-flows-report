@@ -13,6 +13,14 @@ load_dotenv()
 
 class ApiError(Exception):
     def __init__(self, status_code: int, message: str):
+        """API 오류 정보를 담은 예외를 초기화한다.
+
+        Input:
+            status_code: API 응답 상태 코드.
+            message: 호출 실패 원인 또는 응답 메시지.
+        Output:
+            None: 예외 메시지와 상태 정보를 인스턴스에 저장한다.
+        """
         self.status_code = status_code
         self.message = message
         super().__init__(f"API Error (Status: {status_code}): {message}")
@@ -20,6 +28,13 @@ class ApiError(Exception):
 
 class ApiUtil:
     def __init__(self) -> None:
+        """MQWAY API 호출에 필요한 설정과 기본값을 초기화한다.
+
+        Input:
+            없음.
+        Output:
+            None: API 기본 URL, 헤더, 이미지 제한값, 로거를 설정한다.
+        """
         base_url = os.getenv("BASE_URL")
         if not base_url:
             raise EnvironmentError("Missing environment variable: BASE_URL")
@@ -31,6 +46,13 @@ class ApiUtil:
         self.logger = LoggerUtil().get_logger()
 
     def compress_image(self, image_path: str) -> tuple[bytes, str]:
+        """이미지 파일을 API 업로드 제한에 맞게 압축한다.
+
+        Input:
+            image_path: 압축할 이미지 파일 경로.
+        Output:
+            tuple[bytes, str]: 압축된 이미지 바이트와 이미지 포맷 문자열.
+        """
         with Image.open(image_path) as image:
             if image.width > self.max_width:
                 ratio = self.max_width / image.width
@@ -60,6 +82,16 @@ class ApiUtil:
     def build_post_data(
         self, title: str, content: str, category: str, writer: str
     ) -> dict[str, str]:
+        """게시글 생성 API에 전달할 기본 텍스트 데이터를 만든다.
+
+        Input:
+            title: 게시글 제목.
+            content: 게시글 본문.
+            category: 게시글 카테고리.
+            writer: 작성자 식별자.
+        Output:
+            dict[str, str]: 게시글 생성 요청의 텍스트 필드 딕셔너리.
+        """
         return {
             "title": title,
             "content": content,
@@ -68,6 +100,13 @@ class ApiUtil:
         }
 
     def build_image_files(self, image_paths: list[str]) -> dict[str, tuple[str, bytes, str]]:
+        """게시글 생성 API에 첨부할 이미지 파일 데이터를 만든다.
+
+        Input:
+            image_paths: 첨부할 이미지 파일 경로 목록.
+        Output:
+            dict[str, tuple[str, bytes, str]]: requests 파일 업로드용 이미지 필드 딕셔너리.
+        """
         files = {}
         for index, image_path in enumerate(image_paths):
             if not os.path.exists(image_path):
@@ -92,6 +131,18 @@ class ApiUtil:
         image_paths: Optional[list[str]] = None,
         thumbnail_image_path: str | None = None,
     ) -> dict:
+        """MQWAY 게시글 생성 API를 호출한다.
+
+        Input:
+            title: 게시글 제목.
+            content: 게시글 본문.
+            category: 게시글 카테고리.
+            writer: 작성자 식별자.
+            image_paths: 본문에 첨부할 이미지 파일 경로 목록.
+            thumbnail_image_path: 썸네일 이미지 파일 경로.
+        Output:
+            dict: API가 반환한 JSON 응답 데이터.
+        """
         url = f"{self.api_base_url}/board-research"
         data = self.build_post_data(title, content, category, writer)
         files = self.build_image_files(image_paths or [])

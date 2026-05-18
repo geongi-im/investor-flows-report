@@ -9,6 +9,13 @@ from investor_flows.transform import (
 
 
 def test_parse_int_accepts_positive_negative_and_blank_values():
+    """parse_int가 양수, 음수, 빈 값을 올바르게 변환하는지 검증한다.
+
+    Input:
+        없음. 테스트 내부의 고정 입력값을 사용한다.
+    Output:
+        None: 기대값과 다르면 assertion 오류가 발생한다.
+    """
     assert parse_int("12345") == 12345
     assert parse_int("-120") == -120
     assert parse_int("") == 0
@@ -16,6 +23,13 @@ def test_parse_int_accepts_positive_negative_and_blank_values():
 
 
 def test_select_top_combined_net_buy_sorts_before_slicing():
+    """상위 종목을 자르기 전에 합산 순매수 기준으로 정렬하는지 검증한다.
+
+    Input:
+        없음. 테스트 내부에서 12개 종목 행을 만든다.
+    Output:
+        None: 정렬 및 슬라이싱 결과가 다르면 assertion 오류가 발생한다.
+    """
     rows = []
     for idx in range(12):
         rows.append(
@@ -40,6 +54,13 @@ def test_select_top_combined_net_buy_sorts_before_slicing():
 
 
 def test_select_top_combined_net_buy_filters_to_positive_foreign_and_institution():
+    """외국인과 기관이 모두 순매수한 행만 남기는지 검증한다.
+
+    Input:
+        없음. 테스트 내부에서 필터링 대상 행을 만든다.
+    Output:
+        None: 필터링 결과가 다르면 assertion 오류가 발생한다.
+    """
     rows = [
         {
             "hts_kor_isnm": "ForeignOnly",
@@ -78,6 +99,13 @@ def test_select_top_combined_net_buy_filters_to_positive_foreign_and_institution
 
 
 def test_build_report_dataframe_formats_combined_columns():
+    """보고서 DataFrame의 합산 컬럼과 표시 형식이 맞는지 검증한다.
+
+    Input:
+        없음. 테스트 내부에서 보고서 행을 만든다.
+    Output:
+        None: 컬럼 형식 또는 값이 다르면 assertion 오류가 발생한다.
+    """
     rows = [
         {
             "hts_kor_isnm": "Alpha",
@@ -110,6 +138,13 @@ def test_build_report_dataframe_formats_combined_columns():
 
 
 def test_tag_rows_with_market_returns_copies_with_market_field():
+    """시장 태그 추가 시 원본 행을 변경하지 않고 복사본을 반환하는지 검증한다.
+
+    Input:
+        없음. 테스트 내부의 단일 행 목록을 사용한다.
+    Output:
+        None: 반환값 또는 원본 보존 여부가 다르면 assertion 오류가 발생한다.
+    """
     rows = [{"mksc_shrn_iscd": "005930"}]
 
     result = tag_rows_with_market(rows, "KOSPI")

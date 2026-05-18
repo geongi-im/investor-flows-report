@@ -7,10 +7,24 @@ class LoggerUtil:
     _logger = None
 
     def __init__(self, name: str = "investor_flows_report"):
+        """공용 로거 인스턴스를 초기화한다.
+
+        Input:
+            name: 생성할 로거 이름.
+        Output:
+            None: 클래스 수준의 로거 인스턴스를 준비한다.
+        """
         if LoggerUtil._logger is None:
             LoggerUtil._logger = self._create_logger(name)
 
     def _create_logger(self, name: str) -> logging.Logger:
+        """콘솔과 파일 핸들러가 연결된 로거를 생성한다.
+
+        Input:
+            name: 생성하거나 재사용할 로거 이름.
+        Output:
+            logging.Logger: 설정이 완료된 로거 인스턴스.
+        """
         logger = logging.getLogger(name)
         logger.setLevel(logging.DEBUG)
 
@@ -38,4 +52,11 @@ class LoggerUtil:
         return logger
 
     def get_logger(self) -> logging.Logger:
+        """초기화된 공용 로거를 반환한다.
+
+        Input:
+            없음.
+        Output:
+            logging.Logger: LoggerUtil이 보관 중인 로거 인스턴스.
+        """
         return LoggerUtil._logger

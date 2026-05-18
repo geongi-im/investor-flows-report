@@ -24,10 +24,24 @@ load_dotenv()
 
 
 def is_today_holiday() -> bool:
+    """오늘이 한국 공휴일인지 확인한다.
+
+    Input:
+        없음.
+    Output:
+        bool: 오늘 날짜가 한국 공휴일이면 True, 아니면 False.
+    """
     return datetime.today().date() in holidays.KR()
 
 
 def build_delivery_metadata(today: datetime | None = None) -> dict[str, str]:
+    """보고서 전달에 사용할 제목, 본문, 카테고리 메타데이터를 만든다.
+
+    Input:
+        today: 제목 기준 날짜. 없으면 현재 시각을 사용한다.
+    Output:
+        dict[str, str]: API 게시글 생성과 Telegram 전송에 사용할 메타데이터.
+    """
     report_date = today or datetime.now()
     title = f"{report_date:%Y-%m-%d} 외국인+기관 동반 순매수 TOP 10"
     return {
@@ -39,6 +53,13 @@ def build_delivery_metadata(today: datetime | None = None) -> dict[str, str]:
 
 
 def deliver_results(image_paths: list[str]) -> None:
+    """생성된 보고서 이미지를 Telegram과 MQWAY API로 전달한다.
+
+    Input:
+        image_paths: 전송할 보고서 이미지 파일 경로 목록.
+    Output:
+        None: 전송 작업을 수행하고 실패하면 예외를 발생시킨다.
+    """
     metadata = build_delivery_metadata()
     logger = LoggerUtil().get_logger()
     telegram = TelegramUtil()
@@ -75,6 +96,13 @@ def deliver_results(image_paths: list[str]) -> None:
 
 class InvestorFlowsReport:
     def __init__(self) -> None:
+        """투자자 매매동향 보고서 생성에 필요한 설정을 초기화한다.
+
+        Input:
+            없음.
+        Output:
+            None: API 설정, 파일 경로, 이미지 디렉터리, 로거를 준비한다.
+        """
         self.url_base = (os.getenv("KIS_URL_BASE") or "").rstrip("/")
         self.app_key = os.getenv("KIS_APP_KEY")
         self.app_secret = os.getenv("KIS_APP_SECRET")
@@ -86,12 +114,26 @@ class InvestorFlowsReport:
         os.makedirs(self.img_dir, exist_ok=True)
 
     def check_env_variables(self) -> None:
+        """KIS API 호출에 필요한 환경 변수가 설정되어 있는지 확인한다.
+
+        Input:
+            없음.
+        Output:
+            None: 필수 환경 변수가 없으면 EnvironmentError를 발생시킨다.
+        """
         required_vars = ["KIS_APP_KEY", "KIS_APP_SECRET", "KIS_URL_BASE"]
         missing_vars = [var for var in required_vars if not os.getenv(var)]
         if missing_vars:
             raise EnvironmentError(f"Missing environment variables: {', '.join(missing_vars)}")
 
     def load_token(self) -> str | None:
+        """저장된 KIS 접근 토큰을 읽고 만료 여부를 확인한다.
+
+        Input:
+            없음.
+        Output:
+            str | None: 유효한 접근 토큰이 있으면 토큰 문자열, 없으면 None.
+        """
         if not os.path.exists(self.token_file):
             return None
 
@@ -108,6 +150,13 @@ class InvestorFlowsReport:
         return data["access_token"]
 
     def save_token(self, token_info: dict[str, Any]) -> None:
+        """KIS 접근 토큰 정보를 로컬 파일에 저장한다.
+
+        Input:
+            token_info: KIS 토큰 API가 반환한 토큰 정보 딕셔너리.
+        Output:
+            None: token.json 파일에 필요한 토큰 필드를 기록한다.
+        """
         data = {
             "access_token": token_info["access_token"],
             "expires_in": token_info["expires_in"],
@@ -117,6 +166,13 @@ class InvestorFlowsReport:
             json.dump(data, file)
 
     def get_token(self) -> str:
+        """KIS API 접근 토큰을 반환하거나 새로 발급받는다.
+
+        Input:
+            없음.
+        Output:
+            str: KIS API 요청에 사용할 접근 토큰.
+        """
         self.check_env_variables()
 
         token = self.load_token()
@@ -141,6 +197,14 @@ class InvestorFlowsReport:
     def get_investor_flow_rows_for_market(
         self, input_iscd: str, market: str
     ) -> list[dict[str, Any]]:
+        """지정한 시장의 외국인/기관 순매수 데이터를 조회한다.
+
+        Input:
+            input_iscd: KIS API에 전달할 시장 입력 코드.
+            market: 조회 대상 시장명.
+        Output:
+            list[dict[str, Any]]: market 필드가 포함된 투자자 매매동향 행 목록.
+        """
         token = self.get_token()
         url = f"{self.url_base}/uapi/domestic-stock/v1/quotations/foreign-institution-total"
         headers = {
@@ -167,12 +231,28 @@ class InvestorFlowsReport:
         raise RuntimeError(f"KIS investor flow request failed for {market}: {message}")
 
     def get_investor_flow_rows(self) -> list[dict[str, Any]]:
+        """KOSPI와 KOSDAQ 투자자 매매동향 데이터를 모두 조회한다.
+
+        Input:
+            없음.
+        Output:
+            list[dict[str, Any]]: 두 시장의 투자자 매매동향 행을 합친 목록.
+        """
         rows = []
         rows.extend(self.get_investor_flow_rows_for_market("0001", "KOSPI"))
         rows.extend(self.get_investor_flow_rows_for_market("1001", "KOSDAQ"))
         return rows
 
     def get_stock_price(self, stock_code: str, start_date: str, end_date: str) -> pd.DataFrame:
+        """지정한 종목의 일별 종가 데이터를 조회한다.
+
+        Input:
+            stock_code: 조회할 종목 코드.
+            start_date: 조회 시작일(YYYYMMDD).
+            end_date: 조회 종료일(YYYYMMDD).
+        Output:
+            pd.DataFrame: date와 close 컬럼을 가진 최신순 종가 데이터.
+        """
         token = self.get_token()
         url = f"{self.url_base}/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
         headers = {
@@ -208,6 +288,14 @@ class InvestorFlowsReport:
         return df.sort_values(by="date", ascending=False).reset_index(drop=True)
 
     def get_domestic_index(self, market_code: str, date: str) -> pd.DataFrame:
+        """국내 시장 지수의 일별 종가 데이터를 조회한다.
+
+        Input:
+            market_code: 조회할 시장 코드(KOSPI 또는 KOSDAQ).
+            date: 조회 기준일(YYYYMMDD).
+        Output:
+            pd.DataFrame: date와 close 컬럼을 가진 최신순 지수 데이터.
+        """
         token = self.get_token()
         market_input_code = {"KOSPI": "0001", "KOSDAQ": "1001"}[market_code]
         url = f"{self.url_base}/uapi/domestic-stock/v1/quotations/inquire-index-daily-price"
@@ -244,6 +332,14 @@ class InvestorFlowsReport:
     def add_historical_price_change(
         self, rows: list[dict[str, Any]], reference_date: str
     ) -> list[dict[str, Any]]:
+        """각 종목에 기준일 대비 현재가 등락률 정보를 추가한다.
+
+        Input:
+            rows: 가격 변동률을 계산할 종목 행 목록.
+            reference_date: 비교 기준일(YYYYMMDD).
+        Output:
+            list[dict[str, Any]]: historical_price와 price_change_rate가 추가된 행 목록.
+        """
         result = []
         for row in rows:
             item = row.copy()
@@ -271,6 +367,14 @@ class InvestorFlowsReport:
         return result
 
     def calculate_30day_rate(self, df: pd.DataFrame, label: str) -> float:
+        """최신 종가와 30번째 거래일 전 종가의 등락률을 계산한다.
+
+        Input:
+            df: 최신순으로 정렬된 date/close 데이터프레임.
+            label: 오류 메시지에 표시할 데이터 이름.
+        Output:
+            float: 30거래일 기준 등락률(%).
+        """
         if len(df) < 30:
             raise RuntimeError(f"At least 30 {label} rows are required to compute 30-day rates.")
 
@@ -280,6 +384,13 @@ class InvestorFlowsReport:
         )
 
     def format_rate(self, value: float) -> str:
+        """등락률 숫자를 HTML 표시 문자열로 변환한다.
+
+        Input:
+            value: 퍼센트로 표시할 등락률 값.
+        Output:
+            str: 양수/음수 CSS 클래스가 적용된 HTML 문자열.
+        """
         if value < 0:
             return f"<span class='negative'>{value:.2f}%</span>"
         if value > 0:
@@ -293,6 +404,16 @@ class InvestorFlowsReport:
         market_index_change_rate: float,
         file_name: str,
     ) -> str:
+        """보고서 DataFrame을 HTML 테이블 이미지로 저장한다.
+
+        Input:
+            df: 이미지로 렌더링할 보고서 데이터프레임.
+            market: 보고서 대상 시장명.
+            market_index_change_rate: 시장 지수의 30거래일 등락률.
+            file_name: 저장할 이미지 파일명의 접두어.
+        Output:
+            str: 생성된 PNG 이미지 파일 경로.
+        """
         if df.empty:
             raise ValueError("Cannot render an empty DataFrame.")
         if not self.wkhtmltoimage_path:
@@ -367,6 +488,16 @@ class InvestorFlowsReport:
         index_df: pd.DataFrame,
         file_name: str,
     ) -> str:
+        """단일 시장의 상위 순매수 보고서 이미지를 생성한다.
+
+        Input:
+            market: 보고서 대상 시장명.
+            input_iscd: KIS API에 전달할 시장 입력 코드.
+            index_df: 시장 지수 일별 데이터프레임.
+            file_name: 저장할 이미지 파일명의 접두어.
+        Output:
+            str: 생성된 시장별 보고서 이미지 파일 경로.
+        """
         market_index_change_rate = self.calculate_30day_rate(index_df, market)
         reference_date = index_df.iloc[29]["date"].strftime("%Y%m%d")
 
@@ -382,6 +513,13 @@ class InvestorFlowsReport:
         )
 
     def run(self) -> list[str]:
+        """KOSPI와 KOSDAQ 보고서 이미지를 생성하는 전체 흐름을 실행한다.
+
+        Input:
+            없음.
+        Output:
+            list[str]: 생성된 보고서 이미지 파일 경로 목록.
+        """
         today = datetime.now().strftime("%Y%m%d")
         self.logger.info("Investor flows report started.")
 
